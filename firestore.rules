@@ -10,6 +10,52 @@ service cloud.firestore {
     function txt(x, n) { return x is string && x.size() <= n; }
     function num(x, lo, hi) { return x is number && x >= lo && x <= hi; }
     match /{document=**} { allow read, write: if owner(); }
+    // Public recruitment: create only; owner-only read/update/delete via owner rule.
+    match /recruitmentApplications/{applicationId} {
+      allow create: if request.resource.data.keys().hasAll(['name','email','discord','sim','motivation','consent','status','created'])
+        && request.resource.data.keys().hasOnly(['name','email','discord','sim','motivation','consent','status','created'])
+        && txt(request.resource.data.name,80) && request.resource.data.name.size() >= 2
+        && txt(request.resource.data.email,254) && request.resource.data.email.matches('^[^@ ]+@[^@ ]+[.][^@ ]+
+      allow get: if member(uid);
+    }
+    match /driverReports/{uid} {
+      allow get: if member(uid);
+      allow create, update: if member(uid)
+        && request.resource.data.keys().hasAll(['sim','vehicle','place','note','updated'])
+        && request.resource.data.keys().hasOnly(['sim','vehicle','place','note','updated'])
+        && request.resource.data.sim in ['ETS2','openOMSI']
+        && txt(request.resource.data.vehicle,100) && txt(request.resource.data.place,150)
+        && txt(request.resource.data.note,400)
+        && request.resource.data.updated == request.time;
+    }
+    match /driverTelemetry/{uid} {
+      allow get: if member(uid);
+      allow create, update: if member(uid)
+        && request.resource.data.keys().hasAll(['game','connected','x','z','speed','fuel','damage','truck','source','destination','cargo','updated'])
+        && request.resource.data.keys().hasOnly(['game','connected','x','z','speed','fuel','damage','truck','source','destination','cargo','updated'])
+        && request.resource.data.game == 'ETS2'
+        && request.resource.data.connected is bool
+        && num(request.resource.data.x,-10000000,10000000)
+        && num(request.resource.data.z,-10000000,10000000)
+        && num(request.resource.data.speed,0,500)
+        && num(request.resource.data.fuel,0,20000)
+        && num(request.resource.data.damage,0,100)
+        && txt(request.resource.data.truck,100)
+        && txt(request.resource.data.source,100)
+        && txt(request.resource.data.destination,100)
+        && txt(request.resource.data.cargo,150)
+        && request.resource.data.updated == request.time;
+    }
+  }
+}
+)
+        && txt(request.resource.data.discord,80)
+        && request.resource.data.sim in ['ETS2','openOMSI','both']
+        && txt(request.resource.data.motivation,1000) && request.resource.data.motivation.size() >= 5
+        && request.resource.data.consent == true
+        && request.resource.data.status == 'pending'
+        && request.resource.data.created == request.time;
+    }
     match /driverAccounts/{uid} {
       allow get: if member(uid);
     }
