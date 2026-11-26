@@ -39,6 +39,12 @@ def number(value, low, high):
     except (TypeError, ValueError):
         return 0.0
 
+def percent(value):
+    try:
+        return number(float(value) * 100, 0, 100)
+    except (TypeError, ValueError):
+        return 0.0
+
 def label(value, length=100):
     return str(value or "")[:length]
 
@@ -61,7 +67,7 @@ def sample(raw):
             x=number(pos["x"], -1e7, 1e7), z=number(pos["z"], -1e7, 1e7),
             speed=number(abs(number((dashboard.get("speed") or {}).get("kph"), -500, 500)), 0, 500),
             fuel=number((dashboard.get("fuelValue") or {}).get("amount"), 0, 20000),
-            damage=number(number((current.get("damageValues") or {}).get("engine"), 0, 1) * 100, 0, 100),
+            damage=percent((current.get("damageValues") or {}).get("engine")),
             truck=label((" ".join([str(constants.get("brand") or ""), str(constants.get("name") or "")])).strip()),
             source=label(job.get("citySource")), destination=label(job.get("cityDestination")),
             cargo=label((job.get("cargoValues") or {}).get("name"), 150))
@@ -81,7 +87,7 @@ def sample(raw):
         x=number(placement["x"], -1e7, 1e7), z=number(placement["z"], -1e7, 1e7),
         speed=number(abs(number(truck.get("speed"), -500, 500)), 0, 500),
         fuel=number(truck.get("fuel"), 0, 20000),
-        damage=number(number(truck.get("wearEngine"), 0, 1) * 100, 0, 100),
+        damage=percent(truck.get("wearEngine")),
         truck=label(str(truck.get("make") or "")+" "+str(truck.get("model") or "")),
         source=label(job.get("sourceCity")), destination=label(job.get("destinationCity")),
         cargo=label(trailer.get("name"), 150))
@@ -104,7 +110,7 @@ def delivery(raw, last_job):
             "cargo": last_job.get("cargo", ""),
             "distanceKm": number(result.get("distanceKm"), 0, 100000),
             "revenue": number(result.get("revenue"), 0, 100000000),
-            "cargoDamagePct": number(number(result.get("cargoDamage"), 0, 1)*100, 0, 100)}
+            "cargoDamagePct": percent(result.get("cargoDamage"))}
 
 def append_delivery(data, uid):
     folder = Path.home() / "PTGamingSK-Transport"
