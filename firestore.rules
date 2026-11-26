@@ -27,6 +27,14 @@ service cloud.firestore {
     match /portalStatus/maintenance {
       allow get: if request.auth != null && member(request.auth.uid);
     }
+    // Authenticated clock calibration: each enabled driver can access only their own probe.
+    match /clockSync/{uid} {
+      allow get: if member(uid);
+      allow create, update: if member(uid)
+        && request.resource.data.keys().hasOnly(['at'])
+        && request.resource.data.keys().hasAll(['at'])
+        && request.resource.data.at == request.time;
+    }
     match /driverAccounts/{uid} {
       allow get: if member(uid);
     }
