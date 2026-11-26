@@ -4,6 +4,7 @@ No credentials saved. Ctrl+C stops. Not an anti-cheat or payout verifier.
 """
 import json
 import math
+import sys
 import time
 import getpass
 import urllib.request
@@ -40,7 +41,32 @@ def label(value, length=100):
     return str(value or "")[:length]
 
 def sample(raw):
+    # SCS SDK structured JSON (sdkActive / truckValues / jobValues).
+    if "sdkActive" in raw:
+        if raw.get("sdkActive") is not True or str(raw.get("game", "")).upper() != "ETS2":
+            return offline()
+        truck = raw.get("truckValues") or {}
+        constants = truck.get("constantsValues") or {}
+        current = truck.get("currentValues") or {}
+        dashboard = current.get("dashboardValues") or {}
+        pos = (current.get("positionValue") or {}).get("position") or {}
+        if not all(isinstance(pos.get(k), (int, float)) and math.isfinite(pos[k]) for k in ("x", "z")):
+            return offline()
+        job = raw.get("jobValues") or {}
+        if not (raw.get("specialEventsValues") or {}).get("onJob"):
+            job = {}
+        return dict(game="ETS2", connected=True,
+            x=number(pos["x"], -1e7, 1e7), z=number(pos["z"], -1e7, 1e7),
+            speed=number(abs(number((dashboard.get("speed") or {}).get("kph"), -500, 500)), 0, 500),
+            fuel=number((dashboard.get("fuelValue") or {}).get("amount"), 0, 20000),
+            damage=number(number((current.get("damageValues") or {}).get("engine"), 0, 1) * 100, 0, 100),
+            truck=label((" ".join([str(constants.get("brand") or ""), str(constants.get("name") or "")])).strip()),
+            source=label(job.get("citySource")), destination=label(job.get("cityDestination")),
+            cargo=label((job.get("cargoValues") or {}).get("name"), 150))
+    # Legacy Funbit JSON.
     game = raw.get("game") or {}
+    if not isinstance(game, dict):
+        return offline()
     truck = raw.get("truck") or {}
     job = raw.get("job") or {}
     trailer = raw.get("trailer") or {}
@@ -68,7 +94,10 @@ def fields(data):
             for k, v in data.items()}
 
 def main():
-    print("PTGamingSK Transport | ETS2 telemetria")
+    print("PTGamingSK Transport | ETS2 telemetria v1.1")
+    if "--test" in sys.argv:
+        print(json.dumps(sample(request(LOCAL_URL, local=True)), ensure_ascii=False, indent=2))
+        return
     print("Zdieľa iba údaje z hry s riaditeľom. Ukončenie: Ctrl+C.")
     if input("Súhlasíš so zdieľaním hernej telemetrie? (ano): ").strip().lower() not in ("ano", "áno"):
         return
