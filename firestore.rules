@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner() { return request.auth != null && request.auth.uid == "zyH3Sv6i5rVjWNpVRjw3bBHBVVM2"; }
+    function member(uid) {
+      return request.auth != null && request.auth.uid == uid
+        && exists(/databases/$(database)/documents/driverAccounts/$(uid))
+        && get(/databases/$(database)/documents/driverAccounts/$(uid)).data.enabled == true;
+    }
+    function txt(x, n) { return x is string && x.size() <= n; }
+    function num(x, lo, hi) { return x is number && x >= lo && x <= hi; }
+    match /{document=**} { allow read, write: if owner(); }
+    match /driverAccounts/{uid} {
+      allow get: if member(uid);
+    }
+    match /driverReports/{uid} {
+      allow get: if member(uid);
+      allow create, update: if member(uid)
+        && request.resource.data.keys().hasAll(['sim','vehicle','place','note','updated'])
+        && request.resource.data.keys().hasOnly(['sim','vehicle','place','note','updated'])
+        && request.resource.data.sim in ['ETS2','openOMSI']
+        && txt(request.resource.data.vehicle,100) && txt(request.resource.data.place,150)
+        && txt(request.resource.data.note,400)
+        && request.resource.data.updated == request.time;
+    }
+    match /driverTelemetry/{uid} {
+      allow get: if member(uid);
+      allow create, update: if member(uid)
+        && request.resource.data.keys().hasAll(['game','connected','x','z','speed','fuel','damage','truck','source','destination','cargo','updated'])
+        && request.resource.data.keys().hasOnly(['game','connected','x','z','speed','fuel','damage','truck','source','destination','cargo','updated'])
+        && request.resource.data.game == 'ETS2'
+        && request.resource.data.connected is bool
+        && num(request.resource.data.x,-10000000,10000000)
+        && num(request.resource.data.z,-10000000,10000000)
+        && num(request.resource.data.speed,0,500)
+        && num(request.resource.data.fuel,0,20000)
+        && num(request.resource.data.damage,0,100)
+        && txt(request.resource.data.truck,100)
+        && txt(request.resource.data.source,100)
+        && txt(request.resource.data.destination,100)
+        && txt(request.resource.data.cargo,150)
+        && request.resource.data.updated == request.time;
+    }
+  }
+}
