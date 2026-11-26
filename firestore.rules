@@ -7,6 +7,10 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/driverAccounts/$(uid))
         && get(/databases/$(database)/documents/driverAccounts/$(uid)).data.enabled == true;
     }
+    function divisionAllows(uid, sim) {
+      let division = get(/databases/$(database)/documents/driverAccounts/$(uid)).data.get('division', 'both');
+      return division == 'both' || division == sim;
+    }
     function txt(x, n) { return x is string && x.size() <= n; }
     function num(x, lo, hi) { return x is number && x >= lo && x <= hi; }
     match /{document=**} { allow read, write: if owner(); }
@@ -61,8 +65,9 @@ service cloud.firestore {
       allow get: if member(uid);
     }
     match /driverReports/{uid} {
-      allow get: if member(uid);
+      allow get: if member(uid) && (!exists(/databases/$(database)/documents/driverReports/$(uid)) || divisionAllows(uid, resource.data.sim));
       allow create, update: if member(uid)
+        && divisionAllows(uid, request.resource.data.sim)
         && request.resource.data.keys().hasAll(['sim','vehicle','place','note','updated'])
         && request.resource.data.keys().hasOnly(['sim','vehicle','place','note','updated'])
         && request.resource.data.sim in ['ETS2','openOMSI']
@@ -71,8 +76,8 @@ service cloud.firestore {
         && request.resource.data.updated == request.time;
     }
     match /driverTelemetry/{uid} {
-      allow get: if member(uid);
-      allow create, update: if member(uid)
+      allow get: if member(uid) && divisionAllows(uid, 'ETS2');
+      allow create, update: if member(uid) && divisionAllows(uid, 'ETS2')
         && request.resource.data.keys().hasAll(['game','connected','x','z','speed','fuel','damage','truck','source','destination','cargo','updated'])
         && request.resource.data.keys().hasOnly(['game','connected','x','z','speed','fuel','damage','truck','source','destination','cargo','updated'])
         && request.resource.data.game == 'ETS2'
