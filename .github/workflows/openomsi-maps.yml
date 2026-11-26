@@ -1,0 +1,62 @@
+name: Import openOMSI map catalog
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: openomsi-catalog-import
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch catalog pages (maximum six requests)
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, urllib.request, urllib.parse, datetime
+          p = pathlib.Path('openomsi-maps-progress.json')
+          state = json.loads(p.read_text()) if p.exists() else {'next':1,'maps':[]}
+          if state.get('complete'):
+              state = {'next':1,'maps':[]}
+          for _ in range(6):
+              page = state['next']
+              url = 'https://openomsi.omsimods.com.br/api/public/v1/content?' + urllib.parse.urlencode({'type':'MAP','limit':50,'page':page,'sort':'name','order':'asc'})
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(url,headers={'Accept':'application/json','User-Agent':'PTGamingSK-Transport catalog importer'}),timeout=30) as response:
+                      data = json.load(response)
+              except Exception as exc:
+                  print('Import interrupted:',exc)
+                  break
+              pagination = data['pagination']
+              rows = data['data']
+              if int(pagination['page']) != page or not isinstance(rows,list):
+                  raise ValueError('Unexpected pagination')
+              if 'total' in state and state['total'] != int(pagination['total']):
+                  raise ValueError('Catalog changed during import; restart required')
+              state['total'] = int(pagination['total'])
+              state['maps'].extend({k:m[k] for k in ('id','name','slug','url','reports','latest_tested_openomsi_version') if k in m} for m in rows if m.get('type')=='MAP' and m.get('id') and m.get('name'))
+              state['next'] = page+1
+              if page >= int(pagination['pages']):
+                  unique = {m['id']:m for m in state['maps']}
+                  if len(unique) != state['total']:
+                      raise ValueError('Incomplete catalog; refusing publication')
+                  export = {'complete':True,'updated':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source':'https://openomsi.omsimods.com.br/en/api-docs','maps':sorted(unique.values(),key=lambda m:m['name'].casefold())}
+                  pathlib.Path('openomsi-maps.json').write_text(json.dumps(export,ensure_ascii=False,indent=2)+'\n')
+                  state = {'complete':True,'next':1,'maps':[]}
+                  print('Complete export:',len(unique),'maps')
+                  break
+          p.write_text(json.dumps(state,ensure_ascii=False)+'\n')
+          print('Import state:',state.get('next'), 'complete:',state.get('complete',False))
+          PY
+      - name: Save progress and complete export
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add openomsi-maps-progress.json
+          if test -f openomsi-maps.json; then git add openomsi-maps.json; fi
+          if ! git diff --cached --quiet; then
+            git commit -m "Update openOMSI catalog import"
+            git push
+          fi
