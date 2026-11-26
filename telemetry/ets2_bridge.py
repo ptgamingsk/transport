@@ -5,6 +5,8 @@ No credentials saved. Ctrl+C stops. Not an anti-cheat or payout verifier.
 import json
 import math
 import sys
+from pathlib import Path
+from datetime import datetime, timezone
 import time
 import getpass
 import urllib.request
@@ -88,13 +90,37 @@ def offline():
     return dict(game="ETS2", connected=False, x=0.0, z=0.0, speed=0.0, fuel=0.0,
         damage=0.0, truck="", source="", destination="", cargo="")
 
+def delivery(raw, last_job):
+    """Structured SDK delivery event. Returns local evidence, never a payout."""
+    if raw.get("sdkActive") is not True or str(raw.get("game", "")).upper() != "ETS2":
+        return None
+    if not (raw.get("specialEventsValues") or {}).get("jobDelivered"):
+        return None
+    result = (raw.get("gamePlay") or {}).get("jobDelivered") or {}
+    return {"receivedUtc": datetime.now(timezone.utc).isoformat(),
+            "truck": sample(raw)["truck"] or last_job.get("truck", ""),
+            "source": last_job.get("source", ""),
+            "destination": last_job.get("destination", ""),
+            "cargo": last_job.get("cargo", ""),
+            "distanceKm": number(result.get("distanceKm"), 0, 100000),
+            "revenue": number(result.get("revenue"), 0, 100000000),
+            "cargoDamagePct": number(number(result.get("cargoDamage"), 0, 1)*100, 0, 100)}
+
+def append_delivery(data, uid):
+    folder = Path.home() / "PTGamingSK-Transport"
+    folder.mkdir(exist_ok=True)
+    path = folder / ("deliveries-" + uid + ".jsonl")
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(data, ensure_ascii=False, allow_nan=False) + "\n")
+    print("Doručenie uložené lokálne:", path)
+
 def fields(data):
     return {k: ({"booleanValue": v} if isinstance(v, bool) else
                 {"doubleValue": v} if isinstance(v, (int, float)) else {"stringValue": v})
             for k, v in data.items()}
 
 def main():
-    print("PTGamingSK Transport | ETS2 telemetria v1.1")
+    print("PTGamingSK Transport | ETS2 telemetria v1.2")
     if "--test" in sys.argv:
         print(json.dumps(sample(request(LOCAL_URL, local=True)), ensure_ascii=False, indent=2))
         return
@@ -118,6 +144,9 @@ def main():
                  "updateTransforms":[{"fieldPath":"updated","setToServerValue":"REQUEST_TIME"}]}]}, token)
     check_member()
     next_refresh = time.monotonic() + 3000
+    next_publish = 0
+    last_job = {}
+    delivered_before = None
     try:
         while True:
             if time.monotonic() >= next_refresh:
@@ -128,8 +157,28 @@ def main():
             try:
                 raw = request(LOCAL_URL, local=True)
                 data = sample(raw)
+                if data["connected"] and (raw.get("specialEventsValues") or {}).get("onJob"):
+                    last_job = {k: data[k] for k in ("truck", "source", "destination", "cargo")}
+                event = delivery(raw, last_job)
+                if event is not None and delivered_before is False:
+                    try:
+                        append_delivery(event, uid)
+                    except OSError:
+                        print("Lokálny záznam doručenia sa nepodarilo uložiť.")
+                    last_job = {}
+                if data["connected"]:
+                    delivered_before = event is not None
+                else:
+                    delivered_before = None
+                    last_job = {}
             except (OSError, ValueError, TypeError, AttributeError):
                 data = offline()
+                delivered_before = None
+                last_job = {}
+            if time.monotonic() < next_publish:
+                time.sleep(2)
+                continue
+            next_publish = time.monotonic() + INTERVAL
             try:
                 publish(data)
                 print("Odoslané:", data["truck"] if data["connected"] else "ETS2 odpojené")
@@ -140,7 +189,7 @@ def main():
                 print("Firestore dočasne nedostupný; ďalší pokus o 60 s.")
             except OSError:
                 print("Sieť nedostupná; ďalší pokus o 60 s.")
-            time.sleep(INTERVAL)
+            time.sleep(2)
     except KeyboardInterrupt:
         try:
             publish(offline())
