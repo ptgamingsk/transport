@@ -61,6 +61,21 @@ service cloud.firestore {
         && request.resource.data.ids.size() <= 30
         && request.resource.data.at == request.time;
     }
+    // Director creates and closes assignments. Driver may only advance their own trip.
+    match /busRuns/{tripId} {
+      allow get: if member(resource.data.uid) && divisionAllows(resource.data.uid, 'openOMSI');
+      allow update: if member(resource.data.uid) && divisionAllows(resource.data.uid, 'openOMSI')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase','started','finished'])
+        && (
+          (resource.data.phase == 'planned' && request.resource.data.phase == 'running'
+            && request.time.toMillis() >= resource.data.departure
+            && request.resource.data.started == request.time
+            && request.resource.data.finished == null)
+          || (resource.data.phase == 'running' && request.resource.data.phase == 'pending'
+            && request.resource.data.started == resource.data.started
+            && request.resource.data.finished == request.time)
+        );
+    }
     match /driverAccounts/{uid} {
       allow get: if member(uid);
     }
