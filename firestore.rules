@@ -47,6 +47,16 @@ service cloud.firestore {
         && request.resource.data.rules == get(/databases/$(database)/documents/driverAccounts/$(uid)).data.rules
         && request.resource.data.at == request.time;
     }
+    // Private read status for each enabled driver.
+    match /announcementReads/{uid} {
+      allow get: if member(uid);
+      allow create, update: if member(uid)
+        && request.resource.data.keys().hasAll(['ids','at'])
+        && request.resource.data.keys().hasOnly(['ids','at'])
+        && request.resource.data.ids is list
+        && request.resource.data.ids.size() <= 30
+        && request.resource.data.at == request.time;
+    }
     match /driverAccounts/{uid} {
       allow get: if member(uid);
     }
