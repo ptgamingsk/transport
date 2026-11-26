@@ -35,6 +35,18 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll(['at'])
         && request.resource.data.at == request.time;
     }
+    match /portalStatus/announcements {
+      allow get: if request.auth != null && member(request.auth.uid);
+    }
+    match /rulesReceipts/{uid} {
+      allow get: if member(uid);
+      allow create, update: if member(uid)
+        && request.resource.data.keys().hasAll(['version','rules','at'])
+        && request.resource.data.keys().hasOnly(['version','rules','at'])
+        && request.resource.data.version == get(/databases/$(database)/documents/driverAccounts/$(uid)).data.get('rulesVersion', 'initial')
+        && request.resource.data.rules == get(/databases/$(database)/documents/driverAccounts/$(uid)).data.rules
+        && request.resource.data.at == request.time;
+    }
     match /driverAccounts/{uid} {
       allow get: if member(uid);
     }
