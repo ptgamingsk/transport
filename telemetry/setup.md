@@ -1,10 +1,11 @@
-# PTGamingSK Transport – pilotný režim účtov a telemetrie
+# PTGamingSK Transport – Telemetry v1.2
 
-1. Riaditeľ v Firebase Console > Firestore Database > Rules skontroluje a publikuje súbor `firestore.rules` z koreňa repozitára. Pôvodný plný prístup riaditeľa ostáva. Vodiči získajú iba vlastný účet, posledné hlásenie a telemetriu. Otestuj s testovacím účtom pred sprístupnením ďalším vodičom.
-2. V Authentication > Users vytvor samostatný testovací účet e-mail/heslo. Skopíruj UID (nie heslo). V existujúcom riadiacom centre pridaj vodiča v Zamestnanci a v Účty a telemetria povoľ jeho účet. Zákazky a schválené vozidlá ručne synchronizuj tlačidlom Synchronizovať po zmenách. Pri zrušení členstva klikni Zakázať.
-3. V súkromnom okne prehliadača otvor https://ptgamingsk.github.io/transport/driver.html a prihlás sa testovacím vodičom. Otestuj hlásenie aj neprístupnosť firemných dát. Nezdieľaj heslá v chate, repozitári ani cez formuláre iných stránok.
-4. Pre ETS2 telemetriu na hernom PC použi lokálny kompatibilný REST server s API Funbit, napr. https://github.com/dakar2008/ets2-telemetry-server . Inštaluj podľa dokumentácie daného projektu a over v prehliadači http://127.0.0.1:25555/api/ets2/telemetry . JSON musí obsahovať game.connected, game.gameName = ETS2, truck.placement.x/z a ostatné dokumentované polia. Starší doplnok nemusí byť kompatibilný s aktuálnou verziou hry. Nevystavuj port do internetu.
-5. Nainštaluj Python 3, stiahni ets2_bridge.py, otvor PowerShell v priečinku súboru a spusti `py -3 ets2_bridge.py`. Prihlás sa vlastným účtom vodiča. Heslo sa neukladá. Každých 60 sekúnd sa prepíše posledný herný záznam. Ctrl+C ukončuje odosielanie.
-6. Riaditeľ v Účty a telemetria klikne Načítať účty a hlásenia. Čerstvosť sa posudzuje podľa poslednej aktualizácie, nie podľa trvalého online spojenia.
+1. Riaditeľ založí a povolí účet vodiča. Existujúce pravidlá Firebase ostávajú bez zmeny.
+2. Na hernom počítači potrebuješ Python 3 a fungujúci kompatibilný lokálny ETS2 Telemetry Server na porte 25555. Rozhranie http://127.0.0.1:25555/api/ets2/telemetry podporuje štruktúrované SDK JSON (sdkActive, truckValues) aj starší Funbit formát. Nevystavuj port do internetu.
+3. Stiahni [ets2_bridge.py](ets2_bridge.py) a [start-telemetry.cmd](start-telemetry.cmd) do rovnakého priečinka. Zapni hru a server. Ukonči starú verziu bridge cez Ctrl+C. Dvojklikni na start-telemetry.cmd.
+4. Potvrď súhlas a zadaj vlastný povolený e-mail a heslo vodiča. Heslo sa neukladá. Neposielaj ho v chate. Ukončenie: Ctrl+C.
+5. Lokálny test bez odosielania: `py -3 ets2_bridge.py --test`.
+6. Riaditeľ otvorí Účty a telemetria alebo Mapu spoločnosti. Vodič otvorí Telemetriu. Zobrazenie sa automaticky obnovuje približne každých 60 s v otvorenej karte. Klient odosiela stav každých 60 s.
+7. Doručenia zo štruktúrovaného SDK sa skúšobne ukladajú iba lokálne do %USERPROFILE%/PTGamingSK-Transport ako JSONL. Pri krátkych udalostiach alebo výpadkoch sa môžu vynechať. Neodosielajú sa do Firebase; odovzdaj ich riaditeľovi na ručné overenie.
 
-**Obmedzenia:** pilot, zatiaľ bez skúšky na skutočnom ETS2 a bez publikovaných pravidiel; herné súradnice nie sú GPS človeka. Žiadne automatické vyplácanie, automatické schvaľovanie, screenshot upload, história telemetrie ani živé mapové body. Dáta z klienta možno upraviť. Pri väčšom počte vodičov sleduj Firebase kvóty. openOMSI používa ručné hlásenia. Dokumentácia REST: https://firebase.google.com/docs/firestore/use-rest-api a https://github.com/Funbit/ets2-telemetry-server/blob/master/Telemetry.md .
+**Obmedzenia:** Živá mapa je orientačná mapa herných súradníc, nie cestná mapa ani GPS človeka. Kontrola modelu porovnáva názvy, nie identitu vozidla. Telemetria nie je nezávislý dôkaz, nevypláca odmeny a neschvaľuje vozidlá. V1.1 úspešne preniesla reálne údaje testovacieho vodiča; v1.2 a automatické obnovovanie je potrebné otestovať na počítači vodiča. Sleduj Firebase kvóty. openOMSI používa ručné hlásenia.
