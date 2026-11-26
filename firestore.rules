@@ -76,6 +76,38 @@ service cloud.firestore {
             && request.resource.data.finished == request.time)
         );
     }
+    // Server-timestamped attendance events; only the assigned enabled driver can advance the state.
+    match /shiftAttendance/{shiftId} {
+      allow get: if member(resource.data.uid) && divisionAllows(resource.data.uid, 'openOMSI');
+      allow update: if member(resource.data.uid) && divisionAllows(resource.data.uid, 'openOMSI')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phase','started','finished','breaks','breakCount'])
+        && (
+          (resource.data.phase == 'planned' && request.resource.data.phase == 'working'
+            && request.time.toMillis() >= resource.data.start
+            && request.resource.data.started == request.time
+            && request.resource.data.finished == null
+            && request.resource.data.breaks == resource.data.breaks
+            && request.resource.data.breakCount == 0)
+          || (resource.data.phase == 'working' && request.resource.data.phase == 'break'
+            && resource.data.breakCount < 50
+            && request.resource.data.breakCount == resource.data.breakCount + 1
+            && request.resource.data.started == resource.data.started
+            && request.resource.data.finished == null
+            && request.resource.data.breaks.diff(resource.data.breaks).affectedKeys().hasOnly([string(request.resource.data.breakCount)])
+            && request.resource.data.breaks[string(request.resource.data.breakCount)] == {'start':request.time,'end':null})
+          || (resource.data.phase == 'break' && request.resource.data.phase == 'working'
+            && request.resource.data.breakCount == resource.data.breakCount
+            && request.resource.data.started == resource.data.started
+            && request.resource.data.finished == null
+            && request.resource.data.breaks.diff(resource.data.breaks).affectedKeys().hasOnly([string(resource.data.breakCount)])
+            && request.resource.data.breaks[string(resource.data.breakCount)] == {'start':resource.data.breaks[string(resource.data.breakCount)].start,'end':request.time})
+          || (resource.data.phase == 'working' && request.resource.data.phase == 'pending'
+            && request.resource.data.started == resource.data.started
+            && request.resource.data.finished == request.time
+            && request.resource.data.breaks == resource.data.breaks
+            && request.resource.data.breakCount == resource.data.breakCount)
+        );
+    }
     match /driverAccounts/{uid} {
       allow get: if member(uid);
     }
