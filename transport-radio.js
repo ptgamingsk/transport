@@ -27,6 +27,7 @@ export function mountRadio(host, getUser) {
     <button type="button" class="secondary" data-connect>Pripojiť vysielačku</button>
     <button type="button" class="primary" data-talk disabled>Podrž a hovor</button>
     <button type="button" class="secondary" data-enable-audio hidden>Zapnúť príjem zvuku</button>
+    <p class="muted"><label>Klávesová skratka PTT: <select data-ptt-key></select></label><br>Funguje iba v aktívnom okne webovky.</p>
     <p class="muted" role="status"></p>
     <p class="muted" data-radio-activity aria-live="polite">Na kanáli nikto nevysiela.</p>
     <p class="muted" data-radio-count>Pripojení: 0</p>
@@ -40,6 +41,37 @@ export function mountRadio(host, getUser) {
   const audio = panel.querySelector('[data-audio]');
   const activity = panel.querySelector('[data-radio-activity]');
   const count = panel.querySelector('[data-radio-count]');
+
+  const keySelect = panel.querySelector('[data-ptt-key]');
+  const keys = ['F8','F9','F10', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(k => 'Key' + k)];
+  const storageKey = 'transport-radio-ptt-key';
+  for (const key of keys) {
+    const option = document.createElement('option');
+    option.value = key;
+    option.textContent = key.replace(/^Key/, '');
+    keySelect.append(option);
+  }
+  try { keySelect.value = localStorage.getItem(storageKey) || 'F9'; } catch {}
+  if (!keys.includes(keySelect.value)) keySelect.value = 'F9';
+  let heldKey = null;
+  keySelect.onchange = () => {
+    release();
+    try { localStorage.setItem(storageKey, keySelect.value); } catch {}
+  };
+  function shortcutDown(event) {
+    if (event.code !== keySelect.value || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.isComposing || talk.disabled || !panel.isConnected) return;
+    if (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')) return;
+    event.preventDefault();
+    if (event.repeat || heldKey) return;
+    heldKey = event.code;
+    transmit(true);
+  }
+  function shortcutUp(event) {
+    if (event.code !== heldKey) return;
+    event.preventDefault();
+    heldKey = null;
+    transmit(false);
+  }
 
   let context;
   function beep(frequency, duration = 0.075) {
@@ -109,6 +141,7 @@ export function mountRadio(host, getUser) {
   }
 
   function disconnect(message = '') {
+    heldKey = null;
     transmit(false);
     const active = session;
     session = undefined;
@@ -182,7 +215,7 @@ export function mountRadio(host, getUser) {
       });
       room.on(sdk.RoomEvent.Reconnecting, () => {
         if (session !== active) return;
-        transmit(false);
+        release();
         talk.disabled = true;
         status.textContent = 'Obnovujem spojenie…';
       });
@@ -249,12 +282,16 @@ export function mountRadio(host, getUser) {
     if (event.key === ' ' || event.key === 'Enter') transmit(false);
   };
   talk.onblur = () => transmit(false);
-  const release = () => transmit(false);
+  const release = () => { heldKey = null; transmit(false); };
+  window.addEventListener('keydown', shortcutDown);
+  window.addEventListener('keyup', shortcutUp);
   window.addEventListener('blur', release);
   document.addEventListener('visibilitychange', release);
   return () => {
     closed = true;
     disconnect();
+    window.removeEventListener('keydown', shortcutDown);
+    window.removeEventListener('keyup', shortcutUp);
     window.removeEventListener('blur', release);
     document.removeEventListener('visibilitychange', release);
   };
