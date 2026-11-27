@@ -16,8 +16,8 @@ export function createTraining(db,notify=()=>{}){
  let unsub,watchUid,seen=new Set(),generation=0;
  function close(){generation++;unsub?.();unsub=undefined;watchUid=undefined;seen.clear()}
  function watch(uid){if(watchUid===uid)return;close();watchUid=uid;unsub=onSnapshot(collection(db,'transportSOS'),snap=>{for(const d of snap.docs){const a=d.data(),k=d.id+':'+(a.created?.toMillis?.()||0);if(a.status==='pending'&&!seen.has(k)){seen.add(k);notify('sos:'+k,'SOS – '+a.name,a.reason)}}},()=>{});}
- async function show(host,uid,owner,name=''){
- const g=++generation;host.replaceChildren();const root=el('section','','panel');host.append(root);root.append(el('h2','Školenie vodičov / skúšobná doba / SOS'));const msg=el('p','Načítavam…','muted');root.append(msg);
+ async function show(host,uid,owner,name='',mode='training'){
+ const g=++generation;host.replaceChildren();const root=el('section','','panel');host.append(root);root.append(el('h2',owner?'Školenie vodičov / skúšobná doba / SOS':mode==='sos'?'SOS – núdzové hlásenie':'Školenie vodiča'));const msg=el('p','Načítavam…','muted');root.append(msg);
  const alive=()=>g===generation&&root.isConnected;
  const button=(label,fn,parent=root)=>{const b=el('button',label,'secondary');b.type='button';b.onclick=async()=>{b.disabled=true;try{await fn()}catch(e){if(alive())msg.textContent='Operácia zlyhala: '+e.message}finally{b.disabled=false}};parent.append(b);return b};
  const ref=(c,id=uid)=>doc(db,c,id);
@@ -37,12 +37,16 @@ export function createTraining(db,notify=()=>{}){
  }else{
  const [test,prob,sos]=await Promise.all(['transportTraining','transportProbation','transportSOS'].map(c=>getDocFromServer(ref(c))));
  if(!alive())return;const a=test.data(),p=prob.data(),s=sos.data();msg.textContent=a?'Posledný výsledok: '+score(a.answers)+'/10':'Test ešte neabsolvovaný.';
+ if(mode!=='sos'){
  root.append(el('p','Skúšobná doba: '+(p?.status==='trial'?'do '+p.until:p?.status==='approved'?'Schválený vodič':'Bez evidovanej skúšobnej doby')));
  root.append(el('p','Pred testom si prečítaj sekciu Pravidlá spoločnosti. Úspešnosť: 8 z 10.'));
  const form=el('form');root.append(form);
- questions.forEach((q,i)=>{const f=el('fieldset');f.append(el('legend',(i+1)+'. '+q[0]));q[1].forEach((v,j)=>{const l=el('label'),r=el('input');r.type='radio';r.name='q'+i;r.value=j;r.required=true;l.append(r,document.createTextNode(' '+v));f.append(l)});form.append(f)});
+ questions.forEach((q,i)=>{const f=el('fieldset');f.style.cssText='border:1px solid #354044;border-radius:8px;padding:12px;margin:12px 0';f.append(el('legend',(i+1)+'. '+q[0]));q[1].forEach((v,j)=>{const l=el('label'),r=el('input');r.type='radio';r.name='q'+i;r.value=j;r.required=true;l.style.cssText='display:flex;align-items:center;gap:10px;padding:8px;cursor:pointer';r.style.cssText='width:auto;min-width:0;margin:0;accent-color:#a3ed42';l.append(r,document.createTextNode(' '+v));f.append(l)});form.append(f)});
  const submit=el('button','Odovzdať test','primary');submit.type='submit';form.append(submit);form.onsubmit=async e=>{e.preventDefault();submit.disabled=true;try{const data=new FormData(form),answers=questions.map((_,i)=>Number(data.get('q'+i)));await setDoc(ref('transportTraining'),{answers,submitted:serverTimestamp()});if(alive())msg.textContent='Výsledok: '+score(answers)+'/10 · '+(score(answers)>=8?'Úspešný':'Neúspešný')}catch(e){msg.textContent=e.message}finally{submit.disabled=false}};
- root.append(el('h3','SOS – herná mimoriadna udalosť'),el('p','Nie je určené na privolanie skutočnej záchrannej služby.'));if(s&&s.status!=='resolved')root.append(el('p','Aktívne hlásenie: '+s.status));else{const reason=el('input');reason.placeholder='Dôvod hlásenia';reason.maxLength=300;root.append(reason);const b=button('SOS – upozorniť dispečing',async()=>{if(!reason.value.trim())throw Error('Zadaj dôvod');await setDoc(ref('transportSOS'),{name,reason:reason.value.trim(),status:'pending',created:serverTimestamp()});await show(host,uid,false,name)});b.style.background='#a51e2d';b.style.color='white'}
+ }
+ if(mode==='sos'){
+ msg.textContent='Núdzové hlásenie dispečingu';root.append(el('h3','SOS – herná mimoriadna udalosť'),el('p','Nie je určené na privolanie skutočnej záchrannej služby.'));if(s&&s.status!=='resolved')root.append(el('p','Aktívne hlásenie: '+s.status));else{const reason=el('input');reason.placeholder='Dôvod hlásenia';reason.maxLength=300;root.append(reason);const b=button('SOS – upozorniť dispečing',async()=>{if(!reason.value.trim())throw Error('Zadaj dôvod');await setDoc(ref('transportSOS'),{name,reason:reason.value.trim(),status:'pending',created:serverTimestamp()});await show(host,uid,false,name,'sos')});b.style.background='#a51e2d';b.style.color='white'}
+ }
  }
  }catch(e){if(alive())msg.textContent='Údaje sa nepodarilo načítať. '+e.message}
  }
