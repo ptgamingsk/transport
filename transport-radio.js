@@ -28,6 +28,8 @@ export function mountRadio(host, getUser) {
     <button type="button" class="primary" data-talk disabled>Podrž a hovor</button>
     <button type="button" class="secondary" data-enable-audio hidden>Zapnúť príjem zvuku</button>
     <p class="muted" role="status"></p>
+    <p class="muted" data-radio-activity aria-live="polite">Na kanáli nikto nevysiela.</p>
+    <p class="muted" data-radio-count>Pripojení: 0</p>
     <div data-audio hidden></div>`;
   host.append(panel);
 
@@ -36,13 +38,56 @@ export function mountRadio(host, getUser) {
   const enableAudio = panel.querySelector('[data-enable-audio]');
   const status = panel.querySelector('[role=status]');
   const audio = panel.querySelector('[data-audio]');
+  const activity = panel.querySelector('[data-radio-activity]');
+  const count = panel.querySelector('[data-radio-count]');
+  const participants = new Map();
+  let context;
+  function beep(frequency, duration = 0.075) {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      context ||= new AudioContext();
+      if (context.state === 'suspended') context.resume().catch(() => {});
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + duration);
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + duration + 0.01);
+    } catch { /* Zvukové upozornenie nesmie prerušiť vysielačku. */ }
+  }
+  function refreshActivity() {
+    const active = session;
+    if (!active?.room) {
+      count.textContent = 'Pripojení: 0';
+      activity.textContent = 'Na kanáli nikto nevysiela.';
+      return;
+    }
+    count.textContent = 'Pripojení: ' + (active.room.remoteParticipants.size + 1);
+    if (active.track?.mediaStreamTrack.enabled) {
+      activity.textContent = '🔴 VYSIELAM · ' + (active.room.localParticipant.name || 'Ja');
+      return;
+    }
+    const speaker = [...active.room.remoteParticipants.values()].find(p => p.isSpeaking);
+    activity.textContent = speaker
+      ? '🟢 PRIJÍMAM · ' + (speaker.name || speaker.identity || 'Vodič')
+      : 'Na kanáli nikto nevysiela.';
+  }
   let session;
   let closed = false;
 
   function transmit(active) {
     if (!session?.track) return;
+    const wasTransmitting = session.track.mediaStreamTrack.enabled;
     session.track.mediaStreamTrack.enabled = active && !talk.disabled;
-    talk.textContent = session.track.mediaStreamTrack.enabled ? 'Vysielaš…' : 'Podrž a hovor';
+    const transmitting = session.track.mediaStreamTrack.enabled;
+    talk.textContent = transmitting ? 'Vysielaš…' : 'Podrž a hovor';
+    if (transmitting !== wasTransmitting) beep(transmitting ? 1050 : 680);
+    refreshActivity();
   }
 
   function disconnect(message = '') {
@@ -58,6 +103,7 @@ export function mountRadio(host, getUser) {
     connect.disabled = false;
     connect.textContent = 'Pripojiť vysielačku';
     status.textContent = message;
+    refreshActivity();
   }
 
   enableAudio.onclick = async () => {
@@ -95,6 +141,9 @@ export function mountRadio(host, getUser) {
       if (closed || session !== active) return;
       const room = active.room = new sdk.Room();
 
+      room.on(sdk.RoomEvent.ParticipantConnected, refreshActivity);
+      room.on(sdk.RoomEvent.ParticipantDisconnected, refreshActivity);
+      room.on(sdk.RoomEvent.ActiveSpeakersChanged, refreshActivity);
       room.on(sdk.RoomEvent.TrackSubscribed, track => {
         if (session === active && track.kind === 'audio') audio.append(track.attach());
       });
@@ -142,6 +191,7 @@ export function mountRadio(host, getUser) {
       connect.disabled = false;
       connect.textContent = 'Odpojiť vysielačku';
       status.textContent = 'Pripojené.';
+      refreshActivity();
     } catch (error) {
       if (session !== active) return;
       const messages = {
