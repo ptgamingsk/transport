@@ -9,7 +9,7 @@ const localDate = new Intl.DateTimeFormat('en-CA', {
 });
 const labels = { pending: 'Čaká na rozhodnutie', approved: 'Schválená', rejected: 'Zamietnutá' };
 
-export function createTransportLeave(db) {
+export function createTransportLeave(db, now = Date.now) {
   if (db.app.options.projectId !== 'ptgamingsk-transport') {
     throw new Error('Nesprávny Firebase projekt pre dovolenky.');
   }
@@ -102,10 +102,12 @@ export function createTransportLeave(db) {
       const from = form.elements.from;
       const to = form.elements.to;
       function updateDates() {
-        from.min = localDate.format(new Date());
-        to.min = from.value || from.min;
+        from.min = localDate.format(new Date(now()));
+        to.min = from.value > from.min ? from.value : from.min;
       }
       updateDates();
+      from.value = from.min;
+      form.addEventListener('focusin', updateDates);
       from.onchange = updateDates;
       form.onsubmit = async event => {
         event.preventDefault();
@@ -120,6 +122,7 @@ export function createTransportLeave(db) {
           });
           form.reset();
           updateDates();
+          from.value = from.min;
           status.textContent = 'Žiadosť bola odoslaná.';
         } catch {
           status.textContent = 'Žiadosť sa nepodarilo odoslať.';
