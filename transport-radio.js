@@ -40,7 +40,7 @@ export function mountRadio(host, getUser) {
   const audio = panel.querySelector('[data-audio]');
   const activity = panel.querySelector('[data-radio-activity]');
   const count = panel.querySelector('[data-radio-count]');
-  const participants = new Map();
+
   let context;
   function beep(frequency, duration = 0.075) {
     try {
@@ -72,7 +72,8 @@ export function mountRadio(host, getUser) {
       activity.textContent = '🔴 VYSIELAM · ' + (active.room.localParticipant.name || 'Ja');
       return;
     }
-    const speaker = [...active.room.remoteParticipants.values()].find(p => p.isSpeaking);
+    const speaker = [...active.room.remoteParticipants.values()].find(p =>
+      [...p.audioTrackPublications.values()].some(pub => pub.source === 'microphone' && !pub.isMuted));
     activity.textContent = speaker
       ? '🟢 PRIJÍMAM · ' + (speaker.name || speaker.identity || 'Vodič')
       : 'Na kanáli nikto nevysiela.';
@@ -82,11 +83,23 @@ export function mountRadio(host, getUser) {
 
   function transmit(active) {
     if (!session?.track) return;
+    session.desiredTransmit = active && !talk.disabled;
     const wasTransmitting = session.track.mediaStreamTrack.enabled;
     session.track.mediaStreamTrack.enabled = active && !talk.disabled;
     const transmitting = session.track.mediaStreamTrack.enabled;
     talk.textContent = transmitting ? 'Vysielaš…' : 'Podrž a hovor';
-    if (transmitting !== wasTransmitting) beep(transmitting ? 1050 : 680);
+    if (transmitting !== wasTransmitting) {
+      beep(transmitting ? 1050 : 680);
+      const current = session;
+      current.muteQueue = (current.muteQueue || Promise.resolve()).catch(() => {}).then(async () => {
+        if (session !== current) return;
+        if (transmitting) await current.track.unmute();
+        else await current.track.mute();
+        if (session === current && current.track.mediaStreamTrack) {
+          current.track.mediaStreamTrack.enabled = current.desiredTransmit === true;
+        }
+      }).catch(() => {});
+    }
     refreshActivity();
   }
 
@@ -144,6 +157,10 @@ export function mountRadio(host, getUser) {
       room.on(sdk.RoomEvent.ParticipantConnected, refreshActivity);
       room.on(sdk.RoomEvent.ParticipantDisconnected, refreshActivity);
       room.on(sdk.RoomEvent.ActiveSpeakersChanged, refreshActivity);
+      room.on(sdk.RoomEvent.TrackMuted, refreshActivity);
+      room.on(sdk.RoomEvent.TrackUnmuted, refreshActivity);
+      room.on(sdk.RoomEvent.TrackPublished, refreshActivity);
+      room.on(sdk.RoomEvent.TrackUnpublished, refreshActivity);
       room.on(sdk.RoomEvent.TrackSubscribed, track => {
         if (session === active && track.kind === 'audio') audio.append(track.attach());
       });
@@ -182,6 +199,9 @@ export function mountRadio(host, getUser) {
         return;
       }
       active.track = track;
+      active.desiredTransmit = false;
+      await track.mute();
+      if (closed || session !== active) return;
       phase = 'publish';
       await room.localParticipant.publishTrack(track, { source: sdk.Track.Source.Microphone });
       if (closed || session !== active) return;
