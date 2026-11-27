@@ -1,0 +1,31 @@
+.transport-chat ol {
+  display: grid;
+  gap: .75rem;
+  padding: 0;
+  list-style: none;
+}
+.transport-chat li {
+  border: 1px solid #30443c;
+  border-radius: 8px;
+  padding: .75rem;
+}
+.transport-chat time {
+  margin-inline-start: .75rem;
+  color: #a9b5b4;
+}
+.transport-chat li p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.transport-chat form {
+  display: grid;
+  gap: .5rem;
+}
+.transport-chat textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.transport-chat form button {
+  justify-self: start;
+}

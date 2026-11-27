@@ -14,6 +14,20 @@ service cloud.firestore {
     function txt(x, n) { return x is string && x.size() <= n; }
     function num(x, lo, hi) { return x is number && x >= lo && x <= hi; }
     match /{document=**} { allow read, write: if owner(); }
+    // Internal Transport chat. The owner retains moderation through the owner rule.
+    match /transportInternalChat/{messageId} {
+      allow list: if request.auth != null && member(request.auth.uid)
+        && request.query.limit <= 40;
+      allow create: if request.auth != null && member(request.auth.uid)
+        && request.resource.data.keys().hasAll(['uid','senderName','text','sentAt'])
+        && request.resource.data.keys().hasOnly(['uid','senderName','text','sentAt'])
+        && request.resource.data.uid == request.auth.uid
+        && txt(request.resource.data.senderName,100)
+        && request.resource.data.senderName == get(/databases/$(database)/documents/driverAccounts/$(request.auth.uid)).data.name
+        && txt(request.resource.data.text,1000)
+        && request.resource.data.text.size() > 0
+        && request.resource.data.sentAt == request.time;
+    }
     // Public recruitment: create only; owner-only read/update/delete.
     match /recruitmentApplications/{applicationId} {
       allow create: if request.resource.data.keys().hasAll(['name','email','discord','sim','motivation','consent','status','created'])
