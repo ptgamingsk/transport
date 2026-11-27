@@ -8,7 +8,7 @@ const dateFormat = new Intl.DateTimeFormat('sk-SK', {
   timeZone: 'Europe/Bratislava', dateStyle: 'short', timeStyle: 'short'
 });
 
-export function createTransportChat({ db, notify, isVisible }) {
+export function createTransportChat({ db, notify, isVisible, onUnreadChange }) {
   if (db.app.options.projectId !== 'ptgamingsk-transport') {
     throw new Error('Nesprávny Firebase projekt pre interný chat.');
   }
@@ -16,6 +16,14 @@ export function createTransportChat({ db, notify, isVisible }) {
   const messages = collection(db, 'transportInternalChat');
   const ordered = query(messages, orderBy('sentAt', 'desc'));
   let session;
+
+  function markRead() {
+    if (!session?.unread.size || !isVisible()) return;
+    session.unread.clear();
+    onUnreadChange();
+  }
+
+  document.addEventListener('visibilitychange', markRead);
 
   function stop() {
     session?.unsubscribe?.();
@@ -44,7 +52,7 @@ export function createTransportChat({ db, notify, isVisible }) {
 
     const state = session = {
       uid, senderName, panel, live: [], history: new Map(), cursor: null, hasMore: false,
-      loaded: false, connected: false
+      loaded: false, connected: false, unread: new Set()
     };
     const list = panel.querySelector('ol');
     const status = panel.querySelector('[role=status]');
@@ -149,11 +157,13 @@ export function createTransportChat({ db, notify, isVisible }) {
       }
       const live = snapshot.docs.filter(row => !row.metadata.hasPendingWrites && row.data().sentAt);
       const previous = new Set(state.live.map(row => row.id));
+      const previousUnread = state.unread.size;
       if (state.loaded && !isVisible()) {
         const newest = state.live[0]?.data().sentAt;
         for (const row of live.filter(row => !previous.has(row.id)).reverse()) {
           const message = row.data();
           if (message.uid !== uid && (!newest || message.sentAt.toMillis() >= newest.toMillis())) {
+            state.unread.add(row.id);
             notify('chat:' + row.id, 'Nová správa v internom chate', message.senderName + ' · ' + message.text.slice(0, 120));
           }
         }
@@ -165,6 +175,7 @@ export function createTransportChat({ db, notify, isVisible }) {
       }
       state.live = live;
       state.loaded = true;
+      if (state.unread.size !== previousUnread) onUnreadChange();
       draw();
       if (!input.readOnly) status.textContent = live.length ? 'Chat je pripojený.' : 'Zatiaľ žiadne správy.';
     }, () => {
@@ -179,7 +190,9 @@ export function createTransportChat({ db, notify, isVisible }) {
 
   return {
     start, stop,
+    unreadCount: () => session?.unread.size ?? 0,
     show(host) {
+      markRead();
       if (session && session.panel.parentNode !== host) host.replaceChildren(session.panel);
     }
   };
