@@ -1,21 +1,71 @@
-.transport-chat ol {
-  display: grid;
-  gap: .75rem;
-  padding: 0;
-  list-style: none;
+.transport-chat h1 {
+  margin-top: 0;
 }
-.transport-chat li {
-  border: 1px solid #30443c;
-  border-radius: 8px;
+.transport-chat ol {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  min-height: min(14rem, 35vh);
+  max-height: min(32rem, 55vh);
+  overflow-y: auto;
+  margin-block: .75rem;
   padding: .75rem;
+  list-style: none;
+  background: #101615;
+  border: 1px solid #30443c;
+  border-radius: 10px;
+}
+.transport-chat .chat-bubble {
+  align-self: flex-start;
+  max-width: min(76%, 44rem);
+  min-width: 0;
+  background: #222b29;
+  border: 1px solid #35423e;
+  border-radius: 4px 14px 14px 14px;
+  padding: .65rem .85rem;
+  overflow-wrap: anywhere;
+}
+.transport-chat .chat-bubble-own {
+  align-self: flex-end;
+  background: #26391f;
+  border-color: #4a6b35;
+  border-radius: 14px 4px 14px 14px;
+}
+.transport-chat .chat-message-meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .2rem .75rem;
 }
 .transport-chat time {
-  margin-inline-start: .75rem;
-  color: #a9b5b4;
+  font-size: .75rem;
+  color: #b5c0bd;
 }
-.transport-chat li p {
+.transport-chat .chat-bubble-own strong {
+  color: var(--green);
+}
+.transport-chat .chat-bubble p {
+  margin: .35rem 0 0;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
+}
+.transport-chat .chat-bubble button {
+  margin-top: .5rem;
+  font-size: .75rem;
+}
+.transport-chat .chat-new-messages {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  color: var(--green);
+  font-size: .8rem;
+}
+.transport-chat .chat-new-messages::before,
+.transport-chat .chat-new-messages::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #4f7137;
 }
 .transport-chat form {
   display: grid;
@@ -25,7 +75,18 @@
   width: 100%;
   box-sizing: border-box;
   resize: vertical;
+  padding: .65rem .75rem;
+  border: 1px solid #40554b;
+  border-radius: 8px;
+  background: #101615;
+  color: inherit;
+  font: inherit;
 }
 .transport-chat form button {
-  justify-self: start;
+  justify-self: end;
+}
+@media (max-width: 600px) {
+  .transport-chat .chat-bubble {
+    max-width: 90%;
+  }
 }

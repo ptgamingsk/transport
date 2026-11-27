@@ -19,6 +19,7 @@ export function createTransportChat({ db, notify, isVisible, onUnreadChange }) {
 
   function markRead() {
     if (!session?.unread.size || !isVisible()) return;
+    session.revealUnread();
     session.unread.clear();
     onUnreadChange();
   }
@@ -61,13 +62,25 @@ export function createTransportChat({ db, notify, isVisible, onUnreadChange }) {
     const send = form.querySelector('button');
     const older = panel.querySelector('[data-older]');
 
-    function draw() {
+    state.revealUnread = () => {
+      state.firstUnread = [...list.children].find(item => state.unread.has(item.dataset.messageId))?.dataset.messageId;
+      draw('unread');
+    };
+
+    function draw(scrollTo) {
+      const oldHeight = list.scrollHeight;
+      const oldTop = list.scrollTop;
+      const nearBottom = oldHeight - oldTop - list.clientHeight < 48;
       const rows = [...state.history.values(), ...state.live].sort((a, b) =>
         a.data().sentAt.toMillis() - b.data().sentAt.toMillis() || a.id.localeCompare(b.id)
       );
-      list.replaceChildren(...rows.map(row => {
+      const items = rows.flatMap(row => {
         const message = row.data();
         const item = document.createElement('li');
+        item.className = message.uid === uid ? 'chat-bubble chat-bubble-own' : 'chat-bubble';
+        item.dataset.messageId = row.id;
+        const meta = document.createElement('div');
+        meta.className = 'chat-message-meta';
         const by = document.createElement('strong');
         const time = document.createElement('time');
         const text = document.createElement('p');
@@ -76,7 +89,8 @@ export function createTransportChat({ db, notify, isVisible, onUnreadChange }) {
         time.dateTime = date.toISOString();
         time.textContent = dateFormat.format(date);
         text.textContent = message.text;
-        item.append(by, time, text);
+        meta.append(by, time);
+        item.append(meta, text);
         if (director) {
           const remove = document.createElement('button');
           remove.type = 'button';
@@ -98,8 +112,21 @@ export function createTransportChat({ db, notify, isVisible, onUnreadChange }) {
           };
           item.append(remove);
         }
-        return item;
-      }));
+        if (row.id !== state.firstUnread) return [item];
+        const divider = document.createElement('li');
+        divider.className = 'chat-new-messages';
+        divider.textContent = 'Nové správy';
+        return [divider, item];
+      });
+      list.replaceChildren(...items);
+      if (scrollTo === 'unread') {
+        const divider = list.querySelector('.chat-new-messages');
+        list.scrollTop = divider ? divider.offsetTop : list.scrollHeight;
+      } else if (scrollTo === 'history') {
+        list.scrollTop = oldTop + list.scrollHeight - oldHeight;
+      } else if (nearBottom) {
+        list.scrollTop = list.scrollHeight;
+      }
       older.hidden = !state.hasMore;
     }
 
@@ -115,7 +142,7 @@ export function createTransportChat({ db, notify, isVisible, onUnreadChange }) {
         }
         state.cursor = snapshot.docs.at(-1) || state.cursor;
         state.hasMore = snapshot.size === pageSize;
-        draw();
+        draw('history');
       } catch {
         status.textContent = 'Staršie správy sa nepodarilo načítať.';
       } finally {
@@ -192,8 +219,13 @@ export function createTransportChat({ db, notify, isVisible, onUnreadChange }) {
     start, stop,
     unreadCount: () => session?.unread.size ?? 0,
     show(host) {
+      if (!session) return;
+      if (session.panel.parentNode !== host) {
+        host.replaceChildren(session.panel);
+        const list = session.panel.querySelector('ol');
+        list.scrollTop = list.scrollHeight;
+      }
       markRead();
-      if (session && session.panel.parentNode !== host) host.replaceChildren(session.panel);
     }
   };
 }
