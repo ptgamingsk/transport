@@ -28,6 +28,23 @@ service cloud.firestore {
         && request.resource.data.text.size() > 0
         && request.resource.data.sentAt == request.time;
     }
+    match /transportLeaveRequests/{leaveId} {
+      allow get, list: if request.auth != null && member(request.auth.uid)
+        && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null && member(request.auth.uid)
+        && request.resource.data.keys().hasAll(['uid','name','fromDay','toDay','note','status','createdAt'])
+        && request.resource.data.keys().hasOnly(['uid','name','fromDay','toDay','note','status','createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.name == get(/databases/$(database)/documents/driverAccounts/$(request.auth.uid)).data.name
+        && request.resource.data.fromDay is int
+        && request.resource.data.toDay is int
+        && request.resource.data.fromDay * 86400000 >= request.time.toMillis() - 97200000
+        && request.resource.data.toDay >= request.resource.data.fromDay
+        && request.resource.data.toDay * 86400000 <= request.time.toMillis() + 63244800000
+        && txt(request.resource.data.note,400)
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+    }
     // Public recruitment: create only; owner-only read/update/delete.
     match /recruitmentApplications/{applicationId} {
       allow create: if request.resource.data.keys().hasAll(['name','email','discord','sim','motivation','consent','status','created'])

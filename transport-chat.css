@@ -1,3 +1,6 @@
+.transport-chat {
+  max-width: 60rem;
+}
 .transport-chat h1 {
   margin-top: 0;
 }
@@ -6,7 +9,7 @@
   display: flex;
   flex-direction: column;
   gap: .75rem;
-  min-height: min(14rem, 35vh);
+  min-height: 4.5rem;
   max-height: min(32rem, 55vh);
   overflow-y: auto;
   margin-block: .75rem;
@@ -69,11 +72,17 @@
 }
 .transport-chat form {
   display: grid;
-  gap: .5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: .4rem .65rem;
+}
+.transport-chat form label {
+  grid-column: 1 / -1;
 }
 .transport-chat textarea {
   width: 100%;
   box-sizing: border-box;
+  min-height: 2.6rem;
   resize: vertical;
   padding: .65rem .75rem;
   border: 1px solid #40554b;
@@ -89,4 +98,29 @@
   .transport-chat .chat-bubble {
     max-width: 90%;
   }
+}
+
+.transport-leave form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: .75rem;
+  align-items: end;
+}
+.transport-leave form label {
+  display: grid;
+  gap: .3rem;
+}
+.transport-leave article {
+  border-top: 1px solid #30443c;
+  padding: .85rem 0;
+  overflow-wrap: anywhere;
+}
+.transport-leave article p {
+  margin: .3rem 0;
+}
+.transport-leave .leave-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-top: .65rem;
 }

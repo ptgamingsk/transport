@@ -46,7 +46,7 @@ export function createTransportChat({ db, notify, isVisible, onUnreadChange }) {
       <ol aria-label="História správ"></ol>
       <form>
         <label for="transportChatMessage">Správa</label>
-        <textarea id="transportChatMessage" required maxlength="1000" rows="3"></textarea>
+        <textarea id="transportChatMessage" required maxlength="1000" rows="1" placeholder="Napíš správu…"></textarea>
         <button class="primary" disabled>Odoslať</button>
       </form>
       <p class="muted" role="status">Pripájam chat…</p>`;
