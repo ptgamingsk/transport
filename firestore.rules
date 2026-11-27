@@ -45,6 +45,14 @@ service cloud.firestore {
         && request.resource.data.status == 'pending'
         && request.resource.data.createdAt == request.time;
     }
+    match /transportDispatchFaults/{uid} {
+      allow get: if member(uid);
+      allow create, update: if member(uid)
+        && request.resource.data.keys().hasAll(['active','updated'])
+        && request.resource.data.keys().hasOnly(['active','updated'])
+        && request.resource.data.active is bool
+        && request.resource.data.updated == request.time;
+    }
     // Public recruitment: create only; owner-only read/update/delete.
     match /recruitmentApplications/{applicationId} {
       allow create: if request.resource.data.keys().hasAll(['name','email','discord','sim','motivation','consent','status','created'])
