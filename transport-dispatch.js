@@ -2,6 +2,8 @@ import {
   collection, doc, onSnapshot, query, serverTimestamp, setDoc, where
 } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
 
+import { mountRadio } from './transport-radio.js';
+
 const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bratislava', year: 'numeric', month: 'numeric', day: 'numeric' });
 const dayMs = 86_400_000;
 const statusInfo = {
@@ -40,7 +42,7 @@ export function driverStatus(uid, account, data, now) {
   return online ? 'online' : 'offline';
 }
 
-export function createLiveDispatch(db, now) {
+export function createLiveDispatch(db, now, getUser) {
   if (db.app.options.projectId !== 'ptgamingsk-transport') throw new Error('Nesprávny projekt dispečingu.');
   let session;
 
@@ -59,6 +61,8 @@ export function createLiveDispatch(db, now) {
     const state = session = { uid, panel, cleanup: [] };
     const status = panel.querySelector('[role=status]');
     const rows = panel.querySelector('[data-dispatch-rows]');
+
+    state.cleanup.push(mountRadio(panel, getUser));
 
     if (!director) {
       const ref = doc(db, 'transportDispatchFaults', uid);
