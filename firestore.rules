@@ -14,6 +14,29 @@ service cloud.firestore {
     function txt(x, n) { return x is string && x.size() <= n; }
     function num(x, lo, hi) { return x is number && x >= lo && x <= hi; }
     match /{document=**} { allow read, write: if owner(); }
+
+    match /transportTraining/{uid} {
+      allow get: if member(uid);
+      allow create, update: if member(uid)
+        && request.resource.data.keys().hasOnly(['answers','submitted'])
+        && request.resource.data.keys().hasAll(['answers','submitted'])
+        && request.resource.data.answers is list
+        && request.resource.data.answers.size() == 10
+        && request.resource.data.answers.toSet().hasOnly([0,1,2])
+        && request.resource.data.submitted == request.time;
+    }
+    match /transportProbation/{uid} { allow get: if member(uid); }
+    match /transportSOS/{uid} {
+      allow get: if member(uid);
+      allow create, update: if member(uid)
+        && (!exists(/databases/$(database)/documents/transportSOS/$(uid)) || resource.data.status == 'resolved')
+        && request.resource.data.keys().hasOnly(['name','reason','status','created'])
+        && request.resource.data.name == get(/databases/$(database)/documents/driverAccounts/$(uid)).data.name
+        && txt(request.resource.data.reason,300)
+        && request.resource.data.reason.size() > 0
+        && request.resource.data.status == 'pending'
+        && request.resource.data.created == request.time;
+    }
     // Internal Transport chat. The owner retains moderation through the owner rule.
     match /transportInternalChat/{messageId} {
       allow list: if request.auth != null && member(request.auth.uid)
