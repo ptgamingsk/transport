@@ -2,7 +2,7 @@ import {
   collection, doc, onSnapshot, query, serverTimestamp, setDoc, where
 } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
 
-import { mountRadio } from './transport-radio.js';
+import { mountRadio } from './transport-radio.js?v=diagnostics';
 
 const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bratislava', year: 'numeric', month: 'numeric', day: 'numeric' });
 const dayMs = 86_400_000;
